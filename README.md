@@ -1,4 +1,3 @@
-Certainly! Here’s the text with the raw `**` syntax for each of the `/` commands:
 
 ---
 
