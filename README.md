@@ -4,7 +4,7 @@ A Madfut-focused Discord bot that manages a virtual economy system with commands
 Commands Overview
 Admin Commands:
 
-/mf_pay_all [amount] [currency]: Pay every user in the server with the specified amount of coins, cards, or bot trades.
+**/mf_pay_all [amount] [currency]: Pay every user in the server with the specified amount of coins, cards, or bot trades.**
 
 /mf_clear_all: Clear everyone’s inventory of coins, cards, and bot trades.
 
