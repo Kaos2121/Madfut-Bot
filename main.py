@@ -24,10 +24,57 @@ async def on_ready():
     await bot.tree.sync()
     print(f'Bot is ready. Logged in as {bot.user}')
 
-def get_user_balance(user_id):
+def get_user_balance(user_id: int) -> dict:
+    """Retrieve or initialize the balance for a user."""
     if user_id not in user_balances:
         user_balances[user_id] = {"coins": 0, "cards": 0, "bot_trades": 0}
     return user_balances[user_id]
+
+async def process_withdrawal(interaction: discord.Interaction, currency: str, amount: int):
+    """Handle withdrawal of a specific currency."""
+    user_id = interaction.user.id
+    balance = get_user_balance(user_id)
+
+    if amount > balance[currency]:
+        embed = discord.Embed(
+            title=f"{currency.capitalize()} Withdrawal Error",
+            description=(
+                f"You attempted to withdraw **{amount:,}** {currency}, but you only have **{balance[currency]:,}**."
+                " Please enter a valid amount."
+            ),
+            color=discord.Color.red()
+        )
+    else:
+        balance[currency] -= amount
+        embed = discord.Embed(
+            title=f"{currency.capitalize()} Withdrawal",
+            description=f"{interaction.user.mention} has withdrawn **{amount:,}** {currency}.",
+            color=discord.Color.green()
+        )
+    await interaction.response.send_message(embed=embed)
+
+async def execute_coin_flip(interaction: discord.Interaction, currency: str, amount: int, side: str, opponent: discord.User = None):
+    """Handle the coin flip betting game."""
+    if side not in ["heads", "tails"]:
+        await interaction.response.send_message("Invalid side chosen. Please choose 'heads' or 'tails'.", ephemeral=True)
+        return
+
+    if opponent is None:
+        await interaction.response.send_message("You must choose an opponent to bet against.", ephemeral=True)
+        return
+
+    balance = get_user_balance(interaction.user.id)
+    if balance[currency] < amount:
+        await interaction.response.send_message("You don't have enough currency to place this bet.", ephemeral=True)
+        return
+
+    view = CoinFlipAcceptView(interaction.user, currency, amount, side)
+    embed = discord.Embed(
+        title="Coin Flip Bet",
+        description=f"{interaction.user.mention} has placed a bet of **{amount:,}** {currency} on **{side.capitalize()}**. Will you accept, {opponent.mention}?",
+        color=discord.Color.orange()
+    )
+    await interaction.response.send_message(embed=embed, view=view)
 
 @bot.tree.command(name="mf_pay_all", description="Pay every user in the server with coins, cards, or bot trades.")
 @commands.has_permissions(administrator=True)
@@ -100,72 +147,15 @@ async def mf_wallet(interaction: discord.Interaction):
 
 @bot.tree.command(name="mf_withdraw_bots", description="Withdraw a specific number of bot trades.")
 async def mf_withdraw_bots(interaction: discord.Interaction, bots: int):
-    user_id = interaction.user.id
-    balance = get_user_balance(user_id)
-
-    if bots > balance["bot_trades"]:
-        embed = discord.Embed(
-            title="Withdrawal Error",
-            description=(
-                f"You attempted to withdraw **{bots:,}** bot trades, but you only have **{balance['bot_trades']:,}**."
-                " Please enter a valid amount."
-            ),
-            color=discord.Color.red()
-        )
-    else:
-        balance["bot_trades"] -= bots
-        embed = discord.Embed(
-            title="Bot Trade Withdrawal",
-            description=f"{interaction.user.mention} has withdrawn **{bots:,}** bot trades.",
-            color=discord.Color.green()
-        )
-    await interaction.response.send_message(embed=embed)
+    await process_withdrawal(interaction, "bot_trades", bots)
 
 @bot.tree.command(name="mf_withdraw_coins", description="Withdraw a specific number of coins.")
 async def mf_withdraw_coins(interaction: discord.Interaction, coins: int):
-    user_id = interaction.user.id
-    balance = get_user_balance(user_id)
-
-    if coins > balance["coins"]:
-        embed = discord.Embed(
-            title="Withdrawal Error",
-            description=(
-                f"You attempted to withdraw **{coins:,}** coins, but you only have **{balance['coins']:,}**."
-                " Please enter a valid amount."
-            ),
-            color=discord.Color.red()
-        )
-    else:
-        balance["coins"] -= coins
-        embed = discord.Embed(
-            title="Coin Withdrawal",
-            description=f"{interaction.user.mention} has withdrawn **{coins:,}** coins.",
-            color=discord.Color.green()
-        )
-    await interaction.response.send_message(embed=embed)
+    await process_withdrawal(interaction, "coins", coins)
 
 @bot.tree.command(name="mf_withdraw_cards", description="Withdraw a specific number of cards.")
 async def mf_withdraw_cards(interaction: discord.Interaction, cards: int):
-    user_id = interaction.user.id
-    balance = get_user_balance(user_id)
-
-    if cards > balance["cards"]:
-        embed = discord.Embed(
-            title="Withdrawal Error",
-            description=(
-                f"You attempted to withdraw **{cards:,}** cards, but you only have **{balance['cards']:,}**."
-                " Please enter a valid amount."
-            ),
-            color=discord.Color.red()
-        )
-    else:
-        balance["cards"] -= cards
-        embed = discord.Embed(
-            title="Card Withdrawal",
-            description=f"{interaction.user.mention} has withdrawn **{cards:,}** cards.",
-            color=discord.Color.green()
-        )
-    await interaction.response.send_message(embed=embed)
+    await process_withdrawal(interaction, "cards", cards)
 
 class CoinFlipAcceptView(discord.ui.View):
     def __init__(self, initiator, currency, amount, side):
